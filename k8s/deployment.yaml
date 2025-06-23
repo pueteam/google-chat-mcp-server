@@ -1,0 +1,90 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: google-chat-mcp-server
+  namespace: qry
+  labels:
+    app: google-chat-mcp-server
+    component: mcp-server
+    tier: backend
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: google-chat-mcp-server
+  template:
+    metadata:
+      labels:
+        app: google-chat-mcp-server
+        component: mcp-server
+        tier: backend
+    spec:
+      containers:
+      - name: google-chat-mcp-server
+        image: europe-southwest1-docker.pkg.dev/pue-madrid/puedata/google-chat-mcp-server:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8004
+          name: mcp-http
+          protocol: TCP
+        env:
+        - name: GOOGLE_APPLICATION_CREDENTIALS
+          value: "/app/credentials/google-chat-mcp-server-key.json"
+        envFrom:
+        - configMapRef:
+            name: google-chat-mcp-config
+        volumeMounts:
+        - name: credentials
+          mountPath: /app/credentials
+          readOnly: true
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /mcp/
+            port: 8004
+            httpHeaders:
+            - name: Accept
+              value: "application/json, text/event-stream"
+            - name: Content-Type
+              value: "application/json"
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 3
+        readinessProbe:
+          tcpSocket:
+            port: 8004
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+        securityContext:
+          allowPrivilegeEscalation: false
+          runAsNonRoot: true
+          runAsUser: 1000
+          readOnlyRootFilesystem: false
+          capabilities:
+            drop:
+            - ALL
+      volumes:
+      - name: credentials
+        secret:
+          secretName: google-chat-mcp-credentials
+          defaultMode: 0400
+      imagePullSecrets:
+      - name: europe-southwest1-docker
+      restartPolicy: Always
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        fsGroup: 1000
