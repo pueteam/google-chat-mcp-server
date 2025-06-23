@@ -81,3 +81,4 @@ docs/_build/
 *.temp
 
 CLAUDE.md
+k8s/
